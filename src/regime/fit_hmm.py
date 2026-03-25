@@ -4,7 +4,7 @@ from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 
 
-def main():
+def main() -> None:
 
     data_dir = Path("data/processed")
     data_dir.mkdir(parents=True, exist_ok=True)
