@@ -12,6 +12,9 @@ venv/
 /data/
 /results/raw/
 
+# Notebooks
+/notebooks/
+
 # VS Code
 .vscode/
 

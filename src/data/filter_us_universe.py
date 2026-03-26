@@ -3,7 +3,7 @@ import pandas as pd
 
 
 RAW_FILE = Path("data/raw/nasdaq_nyse_amex.csv")
-OUTPUT_FILE = Path("data/processed/us_common_stocks.csv")
+OUTPUT_FILE = Path("data/processed/universe/us_common_stocks.csv")
 
 
 def main() -> None:
@@ -11,11 +11,20 @@ def main() -> None:
 
     print(f"Initial number of securities: {len(df)}")
 
-    keep_pattern = r"common stock|common shares"
+    # Step 1: Keep common / ordinary shares (singular + plural)
+    include_pattern = r"common stocks?|common shares?|ordinary shares?"
+    df = df[df["Name"].str.contains(include_pattern, case=False, na=False)].copy()
 
-    df = df[df["Name"].str.contains(keep_pattern, case=False, na=False)].copy()
+    print(f"After including common/ordinary shares: {len(df)}")
 
-    print(f"After keeping common stock / common shares only: {len(df)}")
+    # Step 2: Exclude ADR / ADS
+    # Covers:
+    # - American Depositary Shares
+    # - ADR / ADS abbreviations
+    exclude_pattern = r"depositary|adr|ads"
+    df = df[~df["Name"].str.contains(exclude_pattern, case=False, na=False)].copy()
+
+    print(f"After excluding ADR/ADS: {len(df)}")
 
     df = df.sort_values("Symbol").reset_index(drop=True)
 
