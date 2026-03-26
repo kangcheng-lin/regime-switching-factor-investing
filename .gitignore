@@ -9,14 +9,14 @@ venv/
 .venv/
 
 # Raw data
-data/
-results/raw/
+/data/
+/results/raw/
 
 # VS Code
 .vscode/
 
 # References (papers)
-references/
+/references/
 
 # OS
 .DS_Store
