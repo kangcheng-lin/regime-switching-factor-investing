@@ -7,4 +7,14 @@ This project focuses on building a stock-level factor investing framework with:
 - Portfolio construction and backtesting
 
 ## Status
-Initial setup and migration from previous factor analysis project.
+
+### Regime Detection Pipeline (Completed)
+
+A full end-to-end regime detection pipeline has been implemented and validated using SPY data:
+
+- Data download and preprocessing (`download_spy.py`)
+- Feature engineering (`build_features.py`)
+- Hidden Markov Model training (`fit_hmm.py`)
+- Regime visualization (`plot_regimes.py`)
+
+---
