@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # ==============================
 load_dotenv()
 
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -188,10 +188,14 @@ def main() -> None:
         time.sleep(REQUEST_SLEEP_SECONDS)
 
     audit_df = pd.read_csv(AUDIT_FILE)
-    audit_df = audit_df.sort_values(["symbol", "companyName", "delistedDate"]).reset_index(drop=True)
+    audit_df = audit_df.sort_values(
+        ["symbol", "companyName", "delistedDate"]
+    ).reset_index(drop=True)
 
     keep_df = audit_df[audit_df["keep"].str.lower() == "yes"].copy()
-    keep_df = keep_df.sort_values(["symbol", "companyName", "delistedDate"]).reset_index(drop=True)
+    keep_df = keep_df.sort_values(
+        ["symbol", "companyName", "delistedDate"]
+    ).reset_index(drop=True)
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     audit_df.to_csv(AUDIT_FILE, index=False)

@@ -11,21 +11,55 @@ def main() -> None:
 
     print(f"Initial number of securities: {len(df)}")
 
-    # Step 1: Keep common / ordinary shares (singular + plural)
-    include_pattern = r"common stocks?|common shares?|ordinary shares?"
+    
+    # Step 1: Start with the candidate pool we want:
+    # common stock / common shares / ordinary shares
+
+    include_pattern = (
+        r"common stock|common shares|ordinary share|ordinary shares"
+    )
+
     df = df[df["Name"].str.contains(include_pattern, case=False, na=False)].copy()
 
-    print(f"After including common/ordinary shares: {len(df)}")
+    print(f"After keeping common stock / common shares / ordinary shares: {len(df)}")
 
-    # Step 2: Exclude ADR / ADS
-    # Covers:
-    # - American Depositary Shares
-    # - ADR / ADS abbreviations
-    exclude_pattern = r"depositary|adr|ads"
-    df = df[~df["Name"].str.contains(exclude_pattern, case=False, na=False)].copy()
+    
+    # Step 2: Remove things we DO NOT want, even if they passed Step 1
 
-    print(f"After excluding ADR/ADS: {len(df)}")
+    exclude_name_pattern = (
+        r"adr|ads|depositary|depository|"
+        r"etf|etn|mutual fund|closed-end fund|fund|trust|"
+        r"reit|real estate investment trust|real estate trust|"
+        r"spac|blank check|acquisition corp|acquisition corporation|"
+        r"preferred|convertible preferred|"
+        r"warrant|right|unit|"
+        r"note|bond|senior note|convertible note|"
+        r"beneficial interest"
+    )
 
+    df = df[~df["Name"].str.contains(exclude_name_pattern, case=False, na=False)].copy()
+
+    print(f"After excluding ADR / ETF / SPAC / REIT / etc. by Name: {len(df)}")
+
+    
+    # Step 3: Extra protection using Industry column (if available)
+    
+    if "Industry" in df.columns:
+        exclude_industry_pattern = (
+            r"business development|bdc|"
+            r"reit|real estate investment trust|"
+            r"closed-end fund|etf|etn|trust"
+        )
+
+        df = df[
+            ~df["Industry"].str.contains(exclude_industry_pattern, case=False, na=False)
+        ].copy()
+
+        print(f"After excluding BDC / REIT / fund-like Industry entries: {len(df)}")
+
+    
+    # Final cleanup
+    
     df = df.sort_values("Symbol").reset_index(drop=True)
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
