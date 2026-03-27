@@ -15,6 +15,9 @@ venv/
 # Notebooks
 /notebooks/
 
+# Prompts
+/prompts/
+
 # VS Code
 .vscode/
 
