@@ -1,0 +1,475 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
+
+import math
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+
+@dataclass
+class FF3Config:
+    lifecycle_path: str
+    balance_sheet_dir: str
+    income_statement_dir: str
+    market_cap_dir: str
+    price_cache_path: str = "data/raw/prices/yahoo_adjusted_close.parquet"
+    calendar_path: str = "data/processed/calendar/trading_calendar.csv"
+    output_dir: str = "results/tables/ff3"
+    rebalance_frequency: str = "monthly"  # supported: monthly, weekly
+    long_quantile: float = 0.20
+    short_quantile: float = 0.20
+    long_gross: float = 0.50
+    short_gross: float = 0.50
+    min_ttm_quarters: int = 4
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class FF3Core:
+    """Heavy-lifting component for the FF3 backtest pipeline.
+
+    Responsibilities:
+    - point-in-time lifecycle universe
+    - price download/cache
+    - point-in-time fundamentals
+    - FF3 signal construction
+    - portfolio membership / weights
+    - holding-period return calculation
+    """
+
+    def __init__(self, config: FF3Config):
+        self.config = config
+        self.lifecycle = self._load_lifecycle(config.lifecycle_path)
+        self.balance_index = self._build_file_index(config.balance_sheet_dir)
+        self.income_index = self._build_file_index(config.income_statement_dir)
+        self.market_cap_index = self._build_file_index(config.market_cap_dir)
+        self._balance_cache: Dict[str, pd.DataFrame] = {}
+        self._income_cache: Dict[str, pd.DataFrame] = {}
+        self._market_cap_cache: Dict[str, pd.DataFrame] = {}
+        self._price_panel: Optional[pd.DataFrame] = None
+
+    # ------------------------------------------------------------------
+    # Calendar / prices
+    # ------------------------------------------------------------------
+    def build_rebalance_calendar(self) -> pd.DataFrame:
+        calendar_path = Path(self.config.calendar_path)
+        if not calendar_path.exists():
+            raise FileNotFoundError(f"Trading calendar not found: {calendar_path}")
+
+        cal = pd.read_csv(calendar_path)
+
+        cal["trading_date"] = pd.to_datetime(cal["trading_date"])
+        cal["next_trading_date"] = pd.to_datetime(cal["next_trading_date"])
+        if "week_end" in cal.columns:
+            cal["week_end"] = pd.to_datetime(cal["week_end"])
+
+        if self.config.start_date is not None:
+            cal = cal.loc[cal["trading_date"] >= pd.Timestamp(self.config.start_date)].copy()
+
+        if self.config.end_date is not None:
+            cal = cal.loc[cal["trading_date"] <= pd.Timestamp(self.config.end_date)].copy()
+
+        if self.config.rebalance_frequency == "monthly":
+            cal = cal.loc[cal["is_month_end"] == True].copy()
+        elif self.config.rebalance_frequency == "weekly":
+            cal = cal.loc[cal["is_week_end"] == True].copy()
+        else:
+            raise ValueError(f"Unsupported rebalance_frequency={self.config.rebalance_frequency!r}")
+
+        cal = cal.sort_values("trading_date").reset_index(drop=True)
+
+        out = cal[["trading_date", "next_trading_date"]].copy()
+        out = out.rename(
+            columns={
+                "trading_date": "signal_date",
+                "next_trading_date": "execution_date",
+            }
+        )
+
+        out["next_execution_date"] = out["execution_date"].shift(-1)
+        out = out.dropna(subset=["signal_date", "execution_date", "next_execution_date"]).reset_index(drop=True)
+
+        return out
+
+    def load_or_download_price_panel(self, tickers: Iterable[str]) -> pd.DataFrame:
+        cache_path = Path(self.config.price_cache_path)
+        if cache_path.exists():
+            price_panel = pd.read_parquet(cache_path)
+            price_panel.index = pd.to_datetime(price_panel.index)
+            self._price_panel = price_panel.sort_index()
+            return self._price_panel
+
+        tickers = sorted(set(tickers))
+        if not tickers:
+            raise ValueError("No tickers available to download prices.")
+
+        data = yf.download(
+            tickers=tickers,
+            start=self.config.start_date,
+            end=self.config.end_date,
+            auto_adjust=False,
+            progress=False,
+            group_by="ticker",
+            threads=True,
+        )
+        if data.empty:
+            raise ValueError("Yahoo Finance returned no price data.")
+
+        price_panel = self._extract_adjusted_close_panel(data, tickers)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        price_panel.to_parquet(cache_path)
+        self._price_panel = price_panel.sort_index()
+
+        # Debugging output
+        # print("Number of tickers requested from Yahoo:", len(tickers))
+        # print("First 10 tickers requested:", tickers[:10])
+        # print("Downloaded price panel shape:", price_panel.shape)
+        # print("Downloaded price panel columns sample:", list(price_panel.columns[:10]))
+        # print("Downloaded price panel index sample:", price_panel.index[:5])
+        # print("Sample rows:")
+        # print(price_panel.head())
+        # print("AAPL in columns?", "AAPL" in price_panel.columns)
+        # if "AAPL" in price_panel.columns:
+        #     print("AAPL sample non-null count:", price_panel["AAPL"].notna().sum())
+
+        return self._price_panel
+
+    # ------------------------------------------------------------------
+    # Signal / portfolio construction
+    # ------------------------------------------------------------------
+    def build_signals_for_date(self, signal_date: pd.Timestamp) -> pd.DataFrame:
+        active_universe = self.get_universe_at_date(signal_date)
+
+        # Debugging output
+        # print(f"\\nSignal date: {signal_date}")
+        # print(f"Active universe count: {len(active_universe)}")
+        # print(f"Active universe tickers: {active_universe}")
+
+        records: List[Dict[str, object]] = []
+
+        for ticker in active_universe:
+            market_cap = self.get_market_cap_at_date(ticker, signal_date)
+            adj_close = self.get_price_at_date(ticker, signal_date)
+            book_equity = self.get_book_equity_at_date(ticker, signal_date)
+            ttm_net_income = self.get_ttm_net_income_at_date(ticker, signal_date)
+            records.append(
+                {
+                    "signal_date": signal_date,
+                    "ticker": ticker,
+                    "adj_close_t": adj_close,
+                    "market_cap": market_cap,
+                    "book_equity": book_equity,
+                    "ttm_net_income": ttm_net_income,
+                }
+            )
+
+        df = pd.DataFrame(records)
+
+        # Debugging output
+        # print("Raw records shape:", df.shape)
+        # if not df.empty:
+        #     print(df[["ticker", "adj_close_t", "market_cap", "book_equity", "ttm_net_income"]].head())
+        #     print("Non-null counts:")
+        #     print(df[["adj_close_t", "market_cap", "book_equity", "ttm_net_income"]].notna().sum())
+
+        if df.empty:
+            return df
+
+        df = self.apply_signal_filters(df)
+
+        # Debugging output
+        # print("Post-filter shape:", df.shape)
+
+        if df.empty:
+            return df
+
+        df["pb"] = df["market_cap"] / df["book_equity"]
+        df["ep"] = df["ttm_net_income"] / df["market_cap"]
+        df["size_signal"] = -df["market_cap"]
+        df["pb_signal"] = -df["pb"]
+        df["ep_signal"] = df["ep"]
+
+        df["rank_size"] = df["size_signal"].rank(method="first", ascending=False)
+        df["rank_pb"] = df["pb_signal"].rank(method="first", ascending=False)
+        df["rank_ep"] = df["ep_signal"].rank(method="first", ascending=False)
+        df["ff3_score"] = df["rank_size"] + df["rank_pb"] + df["rank_ep"]
+
+        return df.sort_values(["ff3_score", "ticker"], ascending=[True, True]).reset_index(drop=True)
+
+    def form_portfolio_membership(
+        self,
+        signals_at_t: pd.DataFrame,
+        signal_date: pd.Timestamp,
+        execution_date: pd.Timestamp,
+    ) -> pd.DataFrame:
+        if signals_at_t.empty:
+            return pd.DataFrame()
+
+        n = len(signals_at_t)
+        n_long = max(1, math.floor(n * self.config.long_quantile))
+        n_short = max(1, math.floor(n * self.config.short_quantile))
+
+        ranked = signals_at_t.sort_values(["ff3_score", "ticker"], ascending=[True, True]).copy()
+        longs = ranked.head(n_long).copy()
+        shorts = ranked.tail(n_short).copy()
+        longs["side"] = "long"
+        shorts["side"] = "short"
+
+        membership = pd.concat([longs, shorts], ignore_index=True)
+        membership["signal_date"] = signal_date
+        membership["execution_date"] = execution_date
+        membership["adj_close_e"] = membership["ticker"].map(lambda t: self.get_price_at_date(t, execution_date))
+        membership = membership.dropna(subset=["adj_close_e"]).reset_index(drop=True)
+        return membership
+
+    def assign_weights(self, membership_at_t: pd.DataFrame) -> pd.DataFrame:
+        if membership_at_t.empty:
+            return pd.DataFrame()
+
+        df = membership_at_t.copy()
+        long_mask = df["side"] == "long"
+        short_mask = df["side"] == "short"
+        n_long = int(long_mask.sum())
+        n_short = int(short_mask.sum())
+        if n_long == 0 or n_short == 0:
+            return pd.DataFrame()
+
+        df.loc[long_mask, "weight"] = self.config.long_gross / n_long
+        df.loc[short_mask, "weight"] = -self.config.short_gross / n_short
+        return df
+
+    def compute_holding_period_asset_returns(
+        self,
+        weights_at_e: pd.DataFrame,
+        execution_date: pd.Timestamp,
+        next_execution_date: pd.Timestamp,
+    ) -> pd.DataFrame:
+        if weights_at_e.empty:
+            return pd.DataFrame()
+
+        records: List[Dict[str, object]] = []
+        for row in weights_at_e.itertuples(index=False):
+            entry_price = row.adj_close_e
+            exit_price = self.get_price_at_date(row.ticker, next_execution_date)
+            actual_exit_date = next_execution_date
+
+            if pd.isna(exit_price):
+                fallback = self.get_last_available_price_before(row.ticker, next_execution_date)
+                if fallback is None:
+                    continue
+                actual_exit_date, exit_price = fallback
+
+            asset_return = (exit_price / entry_price) - 1.0
+            records.append(
+                {
+                    "signal_date": row.signal_date,
+                    "execution_date": execution_date,
+                    "next_execution_date": next_execution_date,
+                    "actual_exit_date": actual_exit_date,
+                    "ticker": row.ticker,
+                    "side": row.side,
+                    "weight": row.weight,
+                    "entry_price": entry_price,
+                    "exit_price": exit_price,
+                    "asset_return": asset_return,
+                    "weighted_return": row.weight * asset_return,
+                }
+            )
+        return pd.DataFrame(records)
+
+    # ------------------------------------------------------------------
+    # Point-in-time accessors
+    # ------------------------------------------------------------------
+    def get_universe_at_date(self, date: pd.Timestamp) -> List[str]:
+        mask = (self.lifecycle["entry_date"] <= date) & (self.lifecycle["exit_date"] >= date)
+        return sorted(self.lifecycle.loc[mask, "ticker"].dropna().astype(str).unique().tolist())
+
+    def get_price_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        if self._price_panel is None or ticker not in self._price_panel.columns or date not in self._price_panel.index:
+            return np.nan
+        value = self._price_panel.at[date, ticker]
+        return float(value) if pd.notna(value) else np.nan
+
+    def get_last_available_price_before(self, ticker: str, date: pd.Timestamp) -> Optional[Tuple[pd.Timestamp, float]]:
+        if self._price_panel is None or ticker not in self._price_panel.columns:
+            return None
+        series = self._price_panel.loc[self._price_panel.index <= date, ticker].dropna()
+        if series.empty:
+            return None
+        return pd.Timestamp(series.index[-1]), float(series.iloc[-1])
+
+    def get_market_cap_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        df = self._load_market_cap(ticker)
+        if df.empty:
+            return np.nan
+        eligible = df.loc[df["availability_date"] <= date]
+        if eligible.empty:
+            return np.nan
+        return float(eligible.iloc[-1]["marketCap"])
+
+    def get_book_equity_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        df = self._load_balance_sheet(ticker)
+        if df.empty:
+            return np.nan
+        eligible = df.loc[df["availability_date"] <= date]
+        if eligible.empty:
+            return np.nan
+        return float(eligible.iloc[-1]["totalStockholdersEquity"])
+
+    def get_ttm_net_income_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        df = self._load_income_statement(ticker)
+        if df.empty:
+            return np.nan
+        eligible = df.loc[df["availability_date"] <= date, ["availability_date", "netIncome"]].dropna()
+        eligible = eligible.sort_values("availability_date")
+        if len(eligible) < self.config.min_ttm_quarters:
+            return np.nan
+        return float(eligible.tail(self.config.min_ttm_quarters)["netIncome"].sum())
+
+    # ------------------------------------------------------------------
+    # CSV loaders
+    # ------------------------------------------------------------------
+    def _load_lifecycle(self, path: str) -> pd.DataFrame:
+        df = pd.read_csv(path)
+        cols = {c.lower(): c for c in df.columns}
+        ticker_col = self._first_existing(cols, ["ticker", "symbol"])
+        entry_col = self._first_existing(cols, ["entry_date", "start_date", "ipo_date"])
+        exit_col = self._first_existing(cols, ["exit_date", "end_date", "delisted_date"])
+        if ticker_col is None or entry_col is None or exit_col is None:
+            raise ValueError("Lifecycle file must contain ticker, entry_date, and exit_date columns (or aliases).")
+
+        out = df[[ticker_col, entry_col, exit_col]].copy()
+        out.columns = ["ticker", "entry_date", "exit_date"]
+        out["ticker"] = out["ticker"].astype(str).str.upper().str.strip()
+        out["entry_date"] = pd.to_datetime(out["entry_date"], errors="coerce")
+        out["exit_date"] = pd.to_datetime(out["exit_date"], errors="coerce")
+        return out.dropna(subset=["ticker", "entry_date", "exit_date"]).reset_index(drop=True)
+
+    def _build_file_index(self, directory: str) -> Dict[str, Path]:
+        base = Path(directory)
+        if not base.exists():
+            raise FileNotFoundError(f"Directory not found: {directory}")
+        return {path.stem.upper(): path for path in base.glob("*.csv")}
+
+    def _load_balance_sheet(self, ticker: str) -> pd.DataFrame:
+        ticker = ticker.upper()
+        if ticker in self._balance_cache:
+            return self._balance_cache[ticker]
+        path = self.balance_index.get(ticker)
+        if path is None:
+            self._balance_cache[ticker] = pd.DataFrame()
+            return self._balance_cache[ticker]
+
+        df = pd.read_csv(path)
+        df = self._normalize_availability_date(df)
+        if "totalStockholdersEquity" not in df.columns:
+            raise ValueError(f"Missing totalStockholdersEquity in balance sheet file: {path}")
+        df = df[["availability_date", "totalStockholdersEquity"]].copy()
+        df["totalStockholdersEquity"] = pd.to_numeric(df["totalStockholdersEquity"], errors="coerce")
+        df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
+        self._balance_cache[ticker] = df
+        return df
+
+    def _load_income_statement(self, ticker: str) -> pd.DataFrame:
+        ticker = ticker.upper()
+        if ticker in self._income_cache:
+            return self._income_cache[ticker]
+        path = self.income_index.get(ticker)
+        if path is None:
+            self._income_cache[ticker] = pd.DataFrame()
+            return self._income_cache[ticker]
+
+        df = pd.read_csv(path)
+        df = self._normalize_availability_date(df)
+        if "netIncome" not in df.columns:
+            raise ValueError(f"Missing netIncome in income statement file: {path}")
+        df = df[["availability_date", "netIncome"]].copy()
+        df["netIncome"] = pd.to_numeric(df["netIncome"], errors="coerce")
+        df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
+        self._income_cache[ticker] = df
+        return df
+
+    def _load_market_cap(self, ticker: str) -> pd.DataFrame:
+        ticker = ticker.upper()
+        if ticker in self._market_cap_cache:
+            return self._market_cap_cache[ticker]
+        path = self.market_cap_index.get(ticker)
+        if path is None:
+            self._market_cap_cache[ticker] = pd.DataFrame()
+            return self._market_cap_cache[ticker]
+
+        df = pd.read_csv(path)
+        df = self._normalize_availability_date(df)
+        cols = {c.lower(): c for c in df.columns}
+        mcap_col = self._first_existing(cols, ["marketcap", "market_cap"])
+        if mcap_col is None:
+            raise ValueError(f"Missing marketCap in market cap file: {path}")
+        df = df[["availability_date", mcap_col]].copy()
+        df.columns = ["availability_date", "marketCap"]
+        df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce")
+        df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
+        self._market_cap_cache[ticker] = df
+        return df
+
+    def _normalize_availability_date(self, df: pd.DataFrame) -> pd.DataFrame:
+        cols = {c.lower(): c for c in df.columns}
+        preferred = self._first_existing(cols, ["accepteddate", "fillingdate", "filingdate", "date"])
+        if preferred is None:
+            raise ValueError("CSV must contain one of: acceptedDate, fillingDate, filingDate, or date.")
+        out = df.copy()
+        out["availability_date"] = pd.to_datetime(out[preferred], errors="coerce")
+        return out
+
+    # ------------------------------------------------------------------
+    # Generic helpers
+    # ------------------------------------------------------------------
+    def apply_signal_filters(self, df: pd.DataFrame) -> pd.DataFrame:
+        required = ["adj_close_t", "market_cap", "book_equity", "ttm_net_income"]
+        out = df.dropna(subset=required).copy()
+        out = out[
+            (out["adj_close_t"] > 0)
+            & (out["market_cap"] > 0)
+            & (out["book_equity"] > 0)
+            & (out["ttm_net_income"] > 0)
+        ].copy()
+        return out
+
+    def save_outputs(self, outputs: Dict[str, pd.DataFrame]) -> None:
+        output_dir = Path(self.config.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for name, df in outputs.items():
+            df.to_csv(output_dir / f"{name}.csv", index=False)
+
+    def _extract_adjusted_close_panel(self, data: pd.DataFrame, tickers: List[str]) -> pd.DataFrame:
+        if isinstance(data.columns, pd.MultiIndex):
+            cols: Dict[str, pd.Series] = {}
+            for ticker in tickers:
+                if (ticker, "Adj Close") in data.columns:
+                    cols[ticker] = data[(ticker, "Adj Close")]
+                elif (ticker, "Close") in data.columns:
+                    cols[ticker] = data[(ticker, "Close")]
+            panel = pd.DataFrame(cols)
+        else:
+            if "Adj Close" in data.columns and len(tickers) == 1:
+                panel = pd.DataFrame({tickers[0]: data["Adj Close"]})
+            elif "Close" in data.columns and len(tickers) == 1:
+                panel = pd.DataFrame({tickers[0]: data["Close"]})
+            else:
+                raise ValueError("Could not locate adjusted close prices in Yahoo output.")
+        panel.index = pd.to_datetime(panel.index)
+        return panel.sort_index()
+
+    def _universe_tickers_from_lifecycle(self) -> List[str]:
+        return sorted(self.lifecycle["ticker"].dropna().astype(str).str.upper().unique().tolist())
+
+    @staticmethod
+    def _first_existing(mapping: Dict[str, str], candidates: List[str]) -> Optional[str]:
+        for candidate in candidates:
+            if candidate in mapping:
+                return mapping[candidate]
+        return None
+    
