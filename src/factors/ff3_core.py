@@ -25,6 +25,7 @@ class FF3Config:
     long_gross: float = 0.50
     short_gross: float = 0.50
     min_ttm_quarters: int = 4
+    price_batch_size: int = 100  # number of tickers to download from yfinance in a single batch
     start_date: Optional[str] = None
     end_date: Optional[str] = None
 
@@ -97,45 +98,72 @@ class FF3Core:
 
     def load_or_download_price_panel(self, tickers: Iterable[str]) -> pd.DataFrame:
         cache_path = Path(self.config.price_cache_path)
+
         if cache_path.exists():
+            print(f"Found price cache: {cache_path}")
             price_panel = pd.read_parquet(cache_path)
             price_panel.index = pd.to_datetime(price_panel.index)
-            self._price_panel = price_panel.sort_index()
-            return self._price_panel
+            price_panel = price_panel.sort_index()
 
-        tickers = sorted(set(tickers))
+            tickers = sorted(set(tickers))
+
+            if self._is_price_cache_valid(price_panel, tickers):
+                print("Using validated price cache.")
+                self._price_panel = price_panel
+                return self._price_panel
+
+            print("Price cache failed validation. Redownloading...")
+            print(f"Overwriting cache at {cache_path}")
+
         if not tickers:
             raise ValueError("No tickers available to download prices.")
 
-        data = yf.download(
-            tickers=tickers,
-            start=self.config.start_date,
-            end=self.config.end_date,
-            auto_adjust=False,
-            progress=False,
-            group_by="ticker",
-            threads=True,
-        )
-        if data.empty:
-            raise ValueError("Yahoo Finance returned no price data.")
+        print(f"Total tickers to download: {len(tickers)}")
+        batches = self._chunk_list(tickers, self.config.price_batch_size)
 
-        price_panel = self._extract_adjusted_close_panel(data, tickers)
+        batch_panels = []
+
+        for i, batch in enumerate(batches, start=1):
+            print(f"Downloading batch {i}/{len(batches)} with {len(batch)} tickers...")
+
+            data = yf.download(
+                tickers=batch,
+                start=self.config.start_date,
+                end=self.config.end_date,
+                auto_adjust=False,
+                progress=False,
+                group_by="ticker",
+                threads=True,
+            )
+
+            if data.empty:
+                print(f"Warning: batch {i} returned no data.")
+                continue
+
+            panel = self._extract_adjusted_close_panel(data, batch)
+
+            if panel.empty:
+                print(f"Warning: batch {i} produced empty adjusted-close panel.")
+                continue
+
+            batch_panels.append(panel)
+
+        if not batch_panels:
+            raise ValueError("All Yahoo batches failed or returned empty price panels.")
+
+        price_panel = pd.concat(batch_panels, axis=1)
+        price_panel = price_panel.sort_index()
+
+        # Remove duplicated columns if any ticker appears more than once
+        price_panel = price_panel.loc[:, ~price_panel.columns.duplicated()]
+
+        # Optional: sort columns alphabetically for consistency
+        price_panel = price_panel.reindex(sorted(price_panel.columns), axis=1)
+
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         price_panel.to_parquet(cache_path)
-        self._price_panel = price_panel.sort_index()
 
-        # Debugging output
-        # print("Number of tickers requested from Yahoo:", len(tickers))
-        # print("First 10 tickers requested:", tickers[:10])
-        # print("Downloaded price panel shape:", price_panel.shape)
-        # print("Downloaded price panel columns sample:", list(price_panel.columns[:10]))
-        # print("Downloaded price panel index sample:", price_panel.index[:5])
-        # print("Sample rows:")
-        # print(price_panel.head())
-        # print("AAPL in columns?", "AAPL" in price_panel.columns)
-        # if "AAPL" in price_panel.columns:
-        #     print("AAPL sample non-null count:", price_panel["AAPL"].notna().sum())
-
+        self._price_panel = price_panel
         return self._price_panel
 
     # ------------------------------------------------------------------
@@ -462,6 +490,60 @@ class FF3Core:
                 raise ValueError("Could not locate adjusted close prices in Yahoo output.")
         panel.index = pd.to_datetime(panel.index)
         return panel.sort_index()
+    
+    def _is_price_cache_valid(self, price_panel: pd.DataFrame, tickers: list[str]) -> bool:
+        if price_panel.empty:
+            print("Price cache invalid: empty panel.")
+            return False
+
+        # Ticker coverage
+        missing_tickers = sorted(set(tickers) - set(price_panel.columns))
+        if missing_tickers:
+            print(f"Price cache invalid: missing {len(missing_tickers)} tickers.")
+            print("Sample missing tickers:", missing_tickers[:10])
+            return False
+
+        # Date coverage
+        cache_start = pd.Timestamp(price_panel.index.min())
+        cache_end = pd.Timestamp(price_panel.index.max())
+
+        if self.config.start_date is not None:
+            requested_start = pd.Timestamp(self.config.start_date)
+            if cache_start > requested_start:
+                print(
+                    f"Price cache invalid: cache starts at {cache_start.date()}, "
+                    f"later than requested start {requested_start.date()}."
+                )
+                return False
+
+        if self.config.end_date is not None:
+            requested_end = pd.Timestamp(self.config.end_date)
+            if cache_end < requested_end:
+                print(
+                    f"Price cache invalid: cache ends at {cache_end.date()}, "
+                    f"earlier than requested end {requested_end.date()}."
+                )
+                return False
+
+        # Requested slice should not be empty
+        sliced = price_panel.copy()
+        if self.config.start_date is not None:
+            sliced = sliced.loc[sliced.index >= pd.Timestamp(self.config.start_date)]
+        if self.config.end_date is not None:
+            sliced = sliced.loc[sliced.index <= pd.Timestamp(self.config.end_date)]
+
+        if sliced.empty:
+            print("Price cache invalid: requested date slice is empty.")
+            return False
+
+        # At least one requested ticker should have some data in the requested slice,
+        # and ideally most should.
+        non_null_counts = sliced[tickers].notna().sum()
+        if (non_null_counts == 0).all():
+            print("Price cache invalid: all requested tickers are fully null in requested slice.")
+            return False
+
+        return True
 
     def _universe_tickers_from_lifecycle(self) -> List[str]:
         return sorted(self.lifecycle["ticker"].dropna().astype(str).str.upper().unique().tolist())
@@ -472,4 +554,8 @@ class FF3Core:
             if candidate in mapping:
                 return mapping[candidate]
         return None
+    
+    @staticmethod
+    def _chunk_list(items: List[str], chunk_size: int) -> List[List[str]]:
+        return [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
     
