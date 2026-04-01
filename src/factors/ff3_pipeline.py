@@ -92,13 +92,13 @@ class FF3Pipeline:
 
 if __name__ == "__main__":
     config = FF3Config(
-        lifecycle_path="data/processed/universe/security_lifecycle_sample_100.csv",
+        lifecycle_path="data/processed/universe/security_lifecycle_smoke_fmp_yahoo_mix.csv",
         balance_sheet_dir="data/processed/fundamentals_clean/balance_sheet_quarter_csv",
         income_statement_dir="data/processed/fundamentals_clean/income_statement_quarter_csv",
         market_cap_dir="data/raw/fundamentals/market_cap_history_csv",
         price_cache_path="data/raw/prices/yahoo_adjusted_close.parquet",
         calendar_path="data/processed/calendar/trading_calendar.csv",
-        output_dir="results/tables/ff3_pilot_test",
+        output_dir="results/tables/ff3_smoke_fmp_yahoo_mix",
         rebalance_frequency="monthly",
         long_quantile=0.20,
         short_quantile=0.20,
@@ -109,6 +109,9 @@ if __name__ == "__main__":
         #end_date=None,
         start_date="2018-01-01",
         end_date="2022-01-01",
+        fmp_price_dir="data/raw/prices/fmp",
+        prefer_fmp_prices=True,
+        use_yahoo_fallback=True,
     )
 
     pipeline = FF3Pipeline(config)

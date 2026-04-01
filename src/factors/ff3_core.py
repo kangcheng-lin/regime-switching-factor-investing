@@ -28,6 +28,10 @@ class FF3Config:
     price_batch_size: int = 100  # number of tickers to download from yfinance in a single batch
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    # --- New: local FMP price support ---
+    fmp_price_dir: Optional[str] = None
+    prefer_fmp_prices: bool = True
+    use_yahoo_fallback: bool = True
 
 
 class FF3Core:
@@ -52,6 +56,9 @@ class FF3Core:
         self._income_cache: Dict[str, pd.DataFrame] = {}
         self._market_cap_cache: Dict[str, pd.DataFrame] = {}
         self._price_panel: Optional[pd.DataFrame] = None
+        # --- New: FMP price index ---
+        self.fmp_price_index = self._build_file_index(config.fmp_price_dir) if config.fmp_price_dir else {}
+        self._fmp_price_cache: Dict[str, pd.DataFrame] = {}
 
     # ------------------------------------------------------------------
     # Calendar / prices
@@ -115,49 +122,71 @@ class FF3Core:
             print("Price cache failed validation. Redownloading...")
             print(f"Overwriting cache at {cache_path}")
 
-        if not tickers:
-            raise ValueError("No tickers available to download prices.")
+        tickers = sorted(set(tickers))
 
-        print(f"Total tickers to download: {len(tickers)}")
-        batches = self._chunk_list(tickers, self.config.price_batch_size)
+        fmp_panel = pd.DataFrame()
+        remaining_tickers = tickers.copy()
 
-        batch_panels = []
+        # --- Step 1: Load FMP prices ---
+        if self.config.prefer_fmp_prices and self.fmp_price_index:
+            print("Loading prices from local FMP folder...")
 
-        for i, batch in enumerate(batches, start=1):
-            print(f"Downloading batch {i}/{len(batches)} with {len(batch)} tickers...")
+            fmp_panel = self._build_fmp_price_panel(tickers)
 
-            data = yf.download(
-                tickers=batch,
-                start=self.config.start_date,
-                end=self.config.end_date,
-                auto_adjust=False,
-                progress=False,
-                group_by="ticker",
-                threads=True,
-            )
+            loaded_tickers = list(fmp_panel.columns)
+            remaining_tickers = sorted(set(tickers) - set(loaded_tickers))
 
-            if data.empty:
-                print(f"Warning: batch {i} returned no data.")
-                continue
+            print("FMP tickers loaded:", sorted(loaded_tickers))
+            print("Yahoo fallback tickers:", remaining_tickers)
 
-            panel = self._extract_adjusted_close_panel(data, batch)
+            print(f"FMP loaded: {len(loaded_tickers)} tickers")
+            print(f"Remaining for Yahoo: {len(remaining_tickers)} tickers")
 
-            if panel.empty:
-                print(f"Warning: batch {i} produced empty adjusted-close panel.")
-                continue
+        # --- Step 2: Yahoo fallback ---
+        yahoo_panel = pd.DataFrame()
 
-            batch_panels.append(panel)
+        if self.config.use_yahoo_fallback and remaining_tickers:
+            print(f"Downloading remaining {len(remaining_tickers)} tickers from Yahoo...")
 
-        if not batch_panels:
-            raise ValueError("All Yahoo batches failed or returned empty price panels.")
+            batches = self._chunk_list(remaining_tickers, self.config.price_batch_size)
+            batch_panels = []
 
-        price_panel = pd.concat(batch_panels, axis=1)
+            for i, batch in enumerate(batches, start=1):
+                print(f"Yahoo batch {i}/{len(batches)}: {len(batch)} tickers")
+
+                data = yf.download(
+                    tickers=batch,
+                    start=self.config.start_date,
+                    end=self.config.end_date,
+                    auto_adjust=False,
+                    progress=False,
+                    group_by="ticker",
+                    threads=True,
+                )
+
+                if data.empty:
+                    continue
+
+                panel = self._extract_adjusted_close_panel(data, batch)
+
+                if not panel.empty:
+                    batch_panels.append(panel)
+
+            if batch_panels:
+                yahoo_panel = pd.concat(batch_panels, axis=1)
+
+        # --- Step 3: Merge ---
+        if not fmp_panel.empty and not yahoo_panel.empty:
+            price_panel = pd.concat([fmp_panel, yahoo_panel], axis=1)
+        elif not fmp_panel.empty:
+            price_panel = fmp_panel
+        elif not yahoo_panel.empty:
+            price_panel = yahoo_panel
+        else:
+            raise ValueError("No price data available from FMP or Yahoo.")
+
         price_panel = price_panel.sort_index()
-
-        # Remove duplicated columns if any ticker appears more than once
         price_panel = price_panel.loc[:, ~price_panel.columns.duplicated()]
-
-        # Optional: sort columns alphabetically for consistency
         price_panel = price_panel.reindex(sorted(price_panel.columns), axis=1)
 
         cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -442,6 +471,64 @@ class FF3Core:
         df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
         self._market_cap_cache[ticker] = df
         return df
+    
+    def _load_fmp_price(self, ticker: str) -> pd.DataFrame:
+        ticker = ticker.upper()
+
+        if ticker in self._fmp_price_cache:
+            return self._fmp_price_cache[ticker]
+
+        path = self.fmp_price_index.get(ticker)
+        if path is None:
+            self._fmp_price_cache[ticker] = pd.DataFrame()
+            return self._fmp_price_cache[ticker]
+
+        df = pd.read_csv(path)
+
+        if "date" not in df.columns:
+            raise ValueError(f"Missing 'date' column in FMP price file: {path}")
+
+        # Prefer adjClose
+        if "adjClose" in df.columns:
+            price_col = "adjClose"
+        elif "close" in df.columns:
+            price_col = "close"
+        else:
+            raise ValueError(f"No price column found in FMP file: {path}")
+
+        df = df[["date", price_col]].copy()
+        df.columns = ["date", "price"]
+
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df["price"] = pd.to_numeric(df["price"], errors="coerce")
+
+        df = df.dropna(subset=["date"]).drop_duplicates(subset=["date"])
+        df = df.sort_values("date").set_index("date")
+
+        # Apply date filter
+        if self.config.start_date:
+            df = df.loc[df.index >= pd.Timestamp(self.config.start_date)]
+        if self.config.end_date:
+            df = df.loc[df.index <= pd.Timestamp(self.config.end_date)]
+
+        self._fmp_price_cache[ticker] = df
+        return df
+    
+    def _build_fmp_price_panel(self, tickers: List[str]) -> pd.DataFrame:
+        panels = {}
+
+        for ticker in tickers:
+            df = self._load_fmp_price(ticker)
+            if df.empty:
+                continue
+            panels[ticker] = df["price"]
+
+        if not panels:
+            return pd.DataFrame()
+
+        panel = pd.DataFrame(panels)
+        panel.index = pd.to_datetime(panel.index)
+        return panel.sort_index()
 
     def _normalize_availability_date(self, df: pd.DataFrame) -> pd.DataFrame:
         cols = {c.lower(): c for c in df.columns}
