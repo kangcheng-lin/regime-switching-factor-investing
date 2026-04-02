@@ -563,10 +563,18 @@ class FF3Core:
         if isinstance(data.columns, pd.MultiIndex):
             cols: Dict[str, pd.Series] = {}
             for ticker in tickers:
+                # Layout 1: (ticker, field)
                 if (ticker, "Adj Close") in data.columns:
                     cols[ticker] = data[(ticker, "Adj Close")]
                 elif (ticker, "Close") in data.columns:
                     cols[ticker] = data[(ticker, "Close")]
+
+                # Layout 2: (field, ticker)
+                elif ("Adj Close", ticker) in data.columns:
+                    cols[ticker] = data[("Adj Close", ticker)]
+                elif ("Close", ticker) in data.columns:
+                    cols[ticker] = data[("Close", ticker)]
+
             panel = pd.DataFrame(cols)
         else:
             if "Adj Close" in data.columns and len(tickers) == 1:
@@ -575,6 +583,7 @@ class FF3Core:
                 panel = pd.DataFrame({tickers[0]: data["Close"]})
             else:
                 raise ValueError("Could not locate adjusted close prices in Yahoo output.")
+
         panel.index = pd.to_datetime(panel.index)
         return panel.sort_index()
     
