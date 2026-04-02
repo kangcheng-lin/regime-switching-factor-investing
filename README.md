@@ -83,6 +83,7 @@ This enables:
 
 - Initial candidate universe: ~7,000+ securities
 - Final filtered universe: ~5,400+ securities
+- Final filtered universe with usable tickers: ~4,900 securities
 
 #### Key Design Decisions
 
@@ -90,5 +91,6 @@ This enables:
 - Foreign companies listed in the U.S. are included (e.g., non-U.S. ordinary shares)
 - Filtering emphasizes **tradability and instrument type consistency**
 - Lifecycle data is used to ensure **time-aware universe membership**
+- Usability is defined based on the availability of data from both **FMP data (primary)** and **Yahoo Finance data (fallback)**
 
 ---
