@@ -104,7 +104,19 @@ class FF3Core:
         return out
 
     def load_or_download_price_panel(self, tickers: Iterable[str]) -> pd.DataFrame:
-        cache_path = Path(self.config.price_cache_path)
+
+        base_path = Path(self.config.price_cache_path)
+
+        start = self.config.start_date or "full"
+        end = self.config.end_date or "full"
+        freq = self.config.rebalance_frequency
+
+        start = str(start)
+        end = str(end)
+        freq = str(freq)
+
+        dynamic_name = f"{base_path.stem}_{start}_{end}_{freq}.parquet"
+        cache_path = base_path.with_name(dynamic_name)
 
         if cache_path.exists():
             print(f"Found price cache: {cache_path}")
@@ -404,7 +416,11 @@ class FF3Core:
         out["ticker"] = out["ticker"].astype(str).str.upper().str.strip()
         out["entry_date"] = pd.to_datetime(out["entry_date"], errors="coerce")
         out["exit_date"] = pd.to_datetime(out["exit_date"], errors="coerce")
-        return out.dropna(subset=["ticker", "entry_date", "exit_date"]).reset_index(drop=True)
+
+        # Treat missing exit_date as still active
+        out["exit_date"] = out["exit_date"].fillna(pd.Timestamp("2099-12-31"))
+
+        return out.dropna(subset=["ticker", "entry_date"]).reset_index(drop=True)
 
     def _build_file_index(self, directory: str) -> Dict[str, Path]:
         base = Path(directory)
@@ -603,23 +619,23 @@ class FF3Core:
         cache_start = pd.Timestamp(price_panel.index.min())
         cache_end = pd.Timestamp(price_panel.index.max())
 
-        if self.config.start_date is not None:
-            requested_start = pd.Timestamp(self.config.start_date)
-            if cache_start > requested_start:
-                print(
-                    f"Price cache invalid: cache starts at {cache_start.date()}, "
-                    f"later than requested start {requested_start.date()}."
-                )
-                return False
+        # if self.config.start_date is not None:
+        #     requested_start = pd.Timestamp(self.config.start_date)
+        #     if cache_start > requested_start:
+        #         print(
+        #             f"Price cache invalid: cache starts at {cache_start.date()}, "
+        #             f"later than requested start {requested_start.date()}."
+        #         )
+        #         return False
 
-        if self.config.end_date is not None:
-            requested_end = pd.Timestamp(self.config.end_date)
-            if cache_end < requested_end:
-                print(
-                    f"Price cache invalid: cache ends at {cache_end.date()}, "
-                    f"earlier than requested end {requested_end.date()}."
-                )
-                return False
+        # if self.config.end_date is not None:
+        #     requested_end = pd.Timestamp(self.config.end_date)
+        #     if cache_end < requested_end:
+        #         print(
+        #             f"Price cache invalid: cache ends at {cache_end.date()}, "
+        #             f"earlier than requested end {requested_end.date()}."
+        #         )
+        #         return False
 
         # Requested slice should not be empty
         sliced = price_panel.copy()
@@ -642,7 +658,17 @@ class FF3Core:
         return True
 
     def _universe_tickers_from_lifecycle(self) -> List[str]:
-        return sorted(self.lifecycle["ticker"].dropna().astype(str).str.upper().unique().tolist())
+        df = self.lifecycle.copy()
+
+        if self.config.start_date is not None:
+            start = pd.Timestamp(self.config.start_date)
+            df = df.loc[df["exit_date"] >= start].copy()
+
+        if self.config.end_date is not None:
+            end = pd.Timestamp(self.config.end_date)
+            df = df.loc[df["entry_date"] <= end].copy()
+
+        return sorted(df["ticker"].dropna().astype(str).str.upper().unique().tolist())
 
     @staticmethod
     def _first_existing(mapping: Dict[str, str], candidates: List[str]) -> Optional[str]:
