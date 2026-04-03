@@ -98,7 +98,7 @@ if __name__ == "__main__":
         market_cap_dir="data/raw/fundamentals/market_cap_history_csv",
         price_cache_path="data/raw/prices/yahoo_adjusted_close.parquet",
         calendar_path="data/processed/calendar/trading_calendar.csv",
-        output_dir="results/tables/ff3_full_price_available_universe",
+        output_dir="results/tables/ff3_full_price_available_universe_no_fmp",
         rebalance_frequency="monthly",
         long_quantile=0.20,
         short_quantile=0.20,
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         start_date="1996-01-01",
         end_date="2026-01-01",
         fmp_price_dir="data/raw/prices/fmp",
-        prefer_fmp_prices=True,
+        prefer_fmp_prices=False,
         use_yahoo_fallback=True,
     )
 

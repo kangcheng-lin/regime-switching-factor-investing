@@ -562,7 +562,7 @@ class FF3Core:
         required = ["adj_close_t", "market_cap", "book_equity", "ttm_net_income"]
         out = df.dropna(subset=required).copy()
         out = out[
-            (out["adj_close_t"] > 0)
+            (out["adj_close_t"] > 5) # price filter to avoid microcaps with noisy signals and potential data issues. Not in original Fama-French, but common in modern implementations.
             & (out["market_cap"] > 0)
             & (out["book_equity"] > 0)
             & (out["ttm_net_income"] > 0)
