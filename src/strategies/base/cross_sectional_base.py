@@ -70,6 +70,7 @@ class CrossSectionalBacktestBase:
         self._income_cache: Dict[str, pd.DataFrame] = {}
         self._market_cap_cache: Dict[str, pd.DataFrame] = {}
         self._price_panel: Optional[pd.DataFrame] = None
+        self._rebalance_calendar_cache: Optional[pd.DataFrame] = None
 
         self.fmp_price_index = self._build_file_index(config.fmp_price_dir) if config.fmp_price_dir else {}
         self._fmp_price_cache: Dict[str, pd.DataFrame] = {}
@@ -115,6 +116,8 @@ class CrossSectionalBacktestBase:
 
         out["next_execution_date"] = out["execution_date"].shift(-1)
         out = out.dropna(subset=["signal_date", "execution_date", "next_execution_date"]).reset_index(drop=True)
+        
+        self._rebalance_calendar_cache = out.copy()
         return out
 
     def load_or_download_price_panel(self, tickers: Iterable[str]) -> pd.DataFrame:
@@ -247,6 +250,9 @@ class CrossSectionalBacktestBase:
             return filtered_df
 
         signals_df = self.strategy.build_signals(filtered_df.copy())
+
+        if signals_df.empty:
+            return signals_df
 
         if self.strategy.score_column not in signals_df.columns:
             raise ValueError(
@@ -441,6 +447,52 @@ class CrossSectionalBacktestBase:
         if len(eligible) < self.config.min_ttm_quarters:
             return np.nan
         return float(eligible.tail(self.config.min_ttm_quarters)["netIncome"].sum())
+    
+    def get_previous_signal_date(self, signal_date: pd.Timestamp) -> Optional[pd.Timestamp]:
+        """
+        Return the previous signal date from the active rebalance calendar.
+
+        This is frequency-aware:
+        - monthly config -> previous monthly signal date
+        - weekly config -> previous weekly signal date
+        """
+        if self._rebalance_calendar_cache is None:
+            self.build_rebalance_calendar()
+
+        cal = self._rebalance_calendar_cache
+        assert cal is not None
+
+        signal_date = pd.Timestamp(signal_date)
+
+        matched = cal.loc[cal["signal_date"] == signal_date]
+        if matched.empty:
+            return None
+
+        idx = matched.index[0]
+        if idx == 0:
+            return None
+
+        prev_date = cal.loc[idx - 1, "signal_date"]
+        return pd.Timestamp(prev_date)
+
+
+    def get_rebalance_return(self, ticker: str, signal_date: pd.Timestamp) -> Optional[float]:
+        """
+        Return the stock return from the previous signal date to the current signal date.
+
+        This defines a rebalance-aligned momentum feature.
+        """
+        prev_signal_date = self.get_previous_signal_date(signal_date)
+        if prev_signal_date is None:
+            return np.nan
+
+        price_t = self.get_price_at_date(ticker, signal_date)
+        price_prev = self.get_price_at_date(ticker, prev_signal_date)
+
+        if pd.isna(price_t) or pd.isna(price_prev) or price_prev == 0:
+            return np.nan
+
+        return float(price_t / price_prev - 1.0)
 
     # ------------------------------------------------------------------
     # CSV loaders
