@@ -563,9 +563,9 @@ class FF3Core:
         out = df.dropna(subset=required).copy()
         out = out[
             (out["adj_close_t"] > 5) # price filter to avoid microcaps with noisy signals and potential data issues. Not in original Fama-French, but common in modern implementations.
-            & (out["market_cap"] > 0)
-            & (out["book_equity"] > 0)
-            & (out["ttm_net_income"] > 0)
+            & (out["market_cap"] > 1e6) # sanity floor: remove near-zero / corrupted market cap
+            & (out["book_equity"] > 1e6) # sanity floor: remove near-zero book equity
+            # & (out["ttm_net_income"] > 0) # we want to include firms with negative net income, and our e/p ratio ranking works with negative earnings
         ].copy()
         return out
 
