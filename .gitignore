@@ -12,7 +12,8 @@ venv/
 /data/
 
 # results
-/results/
+/results/figures/
+/results/tables/
 
 # Notebooks
 /notebooks/
