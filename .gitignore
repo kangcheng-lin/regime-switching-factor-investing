@@ -21,9 +21,6 @@ venv/
 # Prompts
 /prompts/
 
-# Backups
-/backups/
-
 # VS Code
 .vscode/
 
