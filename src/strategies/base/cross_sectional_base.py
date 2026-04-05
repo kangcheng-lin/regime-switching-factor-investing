@@ -17,6 +17,7 @@ class CrossSectionalConfig:
     lifecycle_path: str
     balance_sheet_dir: str
     income_statement_dir: str
+    cash_flow_dir: str
     market_cap_dir: str
     price_cache_path: str = "data/raw/prices/yahoo_adjusted_close.parquet"
     calendar_path: str = "data/processed/calendar/trading_calendar.csv"
@@ -33,6 +34,10 @@ class CrossSectionalConfig:
     fmp_price_dir: Optional[str] = None
     prefer_fmp_prices: bool = False
     use_yahoo_fallback: bool = True
+
+    # Adpted for future long-only or other portfolio modes
+    portfolio_mode: str = "long_short"   # supported: long_short, long_only
+    selection_quantile: float = 0.20     # used for long_only
 
     # Generic signal filters
     min_price: float = 5.0
@@ -64,13 +69,16 @@ class CrossSectionalBacktestBase:
         self.lifecycle = self._load_lifecycle(config.lifecycle_path)
         self.balance_index = self._build_file_index(config.balance_sheet_dir)
         self.income_index = self._build_file_index(config.income_statement_dir)
+        self.cash_flow_index = self._build_file_index(config.cash_flow_dir) if config.cash_flow_dir else {}
         self.market_cap_index = self._build_file_index(config.market_cap_dir)
 
         self._balance_cache: Dict[str, pd.DataFrame] = {}
         self._income_cache: Dict[str, pd.DataFrame] = {}
+        self._cash_flow_cache: Dict[str, pd.DataFrame] = {}
         self._market_cap_cache: Dict[str, pd.DataFrame] = {}
         self._price_panel: Optional[pd.DataFrame] = None
         self._rebalance_calendar_cache: Optional[pd.DataFrame] = None
+        
 
         self.fmp_price_index = self._build_file_index(config.fmp_price_dir) if config.fmp_price_dir else {}
         self._fmp_price_cache: Dict[str, pd.DataFrame] = {}
@@ -224,6 +232,8 @@ class CrossSectionalBacktestBase:
             adj_close = self.get_price_at_date(ticker, signal_date)
             book_equity = self.get_book_equity_at_date(ticker, signal_date)
             ttm_net_income = self.get_ttm_net_income_at_date(ticker, signal_date)
+            ttm_common_dividends_paid = self.get_ttm_common_dividends_paid_at_date(ticker, signal_date)
+            ttm_free_cash_flow = self.get_ttm_free_cash_flow_at_date(ticker, signal_date)
 
             records.append(
                 {
@@ -233,6 +243,8 @@ class CrossSectionalBacktestBase:
                     "market_cap": market_cap,
                     "book_equity": book_equity,
                     "ttm_net_income": ttm_net_income,
+                    "ttm_common_dividends_paid": ttm_common_dividends_paid,
+                    "ttm_free_cash_flow": ttm_free_cash_flow,
                 }
             )
 
@@ -296,26 +308,39 @@ class CrossSectionalBacktestBase:
         if signals_at_t.empty:
             return pd.DataFrame()
 
-        n = len(signals_at_t)
-        n_long = max(1, math.floor(n * self.config.long_quantile))
-        n_short = max(1, math.floor(n * self.config.short_quantile))
-
         ranked = signals_at_t.sort_values(
             [self.strategy.score_column, "ticker"],
             ascending=[self.strategy.sort_ascending, True],
         ).copy()
 
-        longs = ranked.head(n_long).copy()
-        shorts = ranked.tail(n_short).copy()
+        if self.config.portfolio_mode == "long_short":
+            n = len(ranked)
+            n_long = max(1, math.floor(n * self.config.long_quantile))
+            n_short = max(1, math.floor(n * self.config.short_quantile))
 
-        longs["side"] = "long"
-        shorts["side"] = "short"
+            longs = ranked.head(n_long).copy()
+            shorts = ranked.tail(n_short).copy()
 
-        membership = pd.concat([longs, shorts], ignore_index=True)
+            longs["side"] = "long"
+            shorts["side"] = "short"
+
+            membership = pd.concat([longs, shorts], ignore_index=True)
+
+        elif self.config.portfolio_mode == "long_only":
+            n = len(ranked)
+            n_select = max(1, math.floor(n * self.config.selection_quantile))
+
+            membership = ranked.head(n_select).copy()
+            membership["side"] = "long"
+
+        else:
+            raise ValueError(f"Unsupported portfolio_mode={self.config.portfolio_mode!r}")
+
         membership["signal_date"] = signal_date
         membership["execution_date"] = execution_date
         membership["adj_close_e"] = membership["ticker"].map(lambda t: self.get_price_at_date(t, execution_date))
         membership = membership.dropna(subset=["adj_close_e"]).reset_index(drop=True)
+
         return membership
 
     def assign_weights(self, membership_at_t: pd.DataFrame) -> pd.DataFrame:
@@ -323,17 +348,32 @@ class CrossSectionalBacktestBase:
             return pd.DataFrame()
 
         df = membership_at_t.copy()
-        long_mask = df["side"] == "long"
-        short_mask = df["side"] == "short"
 
-        n_long = int(long_mask.sum())
-        n_short = int(short_mask.sum())
+        if self.config.portfolio_mode == "long_short":
+            long_mask = df["side"] == "long"
+            short_mask = df["side"] == "short"
 
-        if n_long == 0 or n_short == 0:
-            return pd.DataFrame()
+            n_long = int(long_mask.sum())
+            n_short = int(short_mask.sum())
 
-        df.loc[long_mask, "weight"] = self.config.long_gross / n_long
-        df.loc[short_mask, "weight"] = -self.config.short_gross / n_short
+            if n_long == 0 or n_short == 0:
+                return pd.DataFrame()
+
+            df.loc[long_mask, "weight"] = self.config.long_gross / n_long
+            df.loc[short_mask, "weight"] = -self.config.short_gross / n_short
+
+        elif self.config.portfolio_mode == "long_only":
+            long_mask = df["side"] == "long"
+            n_long = int(long_mask.sum())
+
+            if n_long == 0:
+                return pd.DataFrame()
+
+            df.loc[long_mask, "weight"] = 1.0 / n_long
+
+        else:
+            raise ValueError(f"Unsupported portfolio_mode={self.config.portfolio_mode!r}")
+
         return df
 
     def compute_holding_period_asset_returns(
@@ -447,6 +487,32 @@ class CrossSectionalBacktestBase:
         if len(eligible) < self.config.min_ttm_quarters:
             return np.nan
         return float(eligible.tail(self.config.min_ttm_quarters)["netIncome"].sum())
+    
+    def get_ttm_common_dividends_paid_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        df = self._load_cash_flow(ticker)
+        if df.empty or "commonDividendsPaid" not in df.columns:
+            return np.nan
+
+        eligible = df.loc[df["availability_date"] <= date, ["availability_date", "commonDividendsPaid"]].dropna()
+        eligible = eligible.sort_values("availability_date")
+        if len(eligible) < self.config.min_ttm_quarters:
+            return np.nan
+
+        # Cash outflow is usually negative; keep sign here, convert later if needed
+        return float(eligible.tail(self.config.min_ttm_quarters)["commonDividendsPaid"].sum())
+
+
+    def get_ttm_free_cash_flow_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
+        df = self._load_cash_flow(ticker)
+        if df.empty or "freeCashFlow" not in df.columns:
+            return np.nan
+
+        eligible = df.loc[df["availability_date"] <= date, ["availability_date", "freeCashFlow"]].dropna()
+        eligible = eligible.sort_values("availability_date")
+        if len(eligible) < self.config.min_ttm_quarters:
+            return np.nan
+
+        return float(eligible.tail(self.config.min_ttm_quarters)["freeCashFlow"].sum())
     
     def get_previous_signal_date(self, signal_date: pd.Timestamp) -> Optional[pd.Timestamp]:
         """
@@ -567,6 +633,40 @@ class CrossSectionalBacktestBase:
         df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
 
         self._income_cache[ticker] = df
+        return df
+    
+    def _load_cash_flow(self, ticker: str) -> pd.DataFrame:
+        ticker = ticker.upper()
+        if ticker in self._cash_flow_cache:
+            return self._cash_flow_cache[ticker]
+
+        path = self.cash_flow_index.get(ticker)
+        if path is None:
+            self._cash_flow_cache[ticker] = pd.DataFrame()
+            return self._cash_flow_cache[ticker]
+
+        df = pd.read_csv(path)
+        df = self._normalize_availability_date(df)
+
+        required_cols = []
+        if "commonDividendsPaid" in df.columns:
+            required_cols.append("commonDividendsPaid")
+        if "freeCashFlow" in df.columns:
+            required_cols.append("freeCashFlow")
+
+        if not required_cols:
+            self._cash_flow_cache[ticker] = pd.DataFrame()
+            return self._cash_flow_cache[ticker]
+
+        keep_cols = ["availability_date"] + required_cols
+        df = df[keep_cols].copy()
+
+        for col in required_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
+
+        self._cash_flow_cache[ticker] = df
         return df
 
     def _load_market_cap(self, ticker: str) -> pd.DataFrame:
