@@ -232,9 +232,10 @@ class CrossSectionalBacktestBase:
             adj_close = self.get_price_at_date(ticker, signal_date)
             book_equity = self.get_book_equity_at_date(ticker, signal_date)
             ttm_net_income = self.get_ttm_net_income_at_date(ticker, signal_date)
+            revenue, operating_income = self.get_revenue_and_operating_income_at_date(ticker, signal_date)
             ttm_common_dividends_paid = self.get_ttm_common_dividends_paid_at_date(ticker, signal_date)
             ttm_free_cash_flow = self.get_ttm_free_cash_flow_at_date(ticker, signal_date)
-
+            
             records.append(
                 {
                     "signal_date": signal_date,
@@ -243,6 +244,8 @@ class CrossSectionalBacktestBase:
                     "market_cap": market_cap,
                     "book_equity": book_equity,
                     "ttm_net_income": ttm_net_income,
+                    "revenue": revenue,
+                    "operatingIncome": operating_income,
                     "ttm_common_dividends_paid": ttm_common_dividends_paid,
                     "ttm_free_cash_flow": ttm_free_cash_flow,
                 }
@@ -501,7 +504,6 @@ class CrossSectionalBacktestBase:
         # Cash outflow is usually negative; keep sign here, convert later if needed
         return float(eligible.tail(self.config.min_ttm_quarters)["commonDividendsPaid"].sum())
 
-
     def get_ttm_free_cash_flow_at_date(self, ticker: str, date: pd.Timestamp) -> Optional[float]:
         df = self._load_cash_flow(ticker)
         if df.empty or "freeCashFlow" not in df.columns:
@@ -513,6 +515,30 @@ class CrossSectionalBacktestBase:
             return np.nan
 
         return float(eligible.tail(self.config.min_ttm_quarters)["freeCashFlow"].sum())
+    
+    def get_revenue_and_operating_income_at_date(
+        self,
+        ticker: str,
+        date: pd.Timestamp,
+    ) -> tuple[float, float]:
+        df = self._load_income_statement(ticker)
+        if df.empty:
+            return np.nan, np.nan
+
+        required_cols = ["availability_date", "revenue", "operatingIncome"]
+        missing = [c for c in required_cols if c not in df.columns]
+        if missing:
+            return np.nan, np.nan
+
+        eligible = df.loc[df["availability_date"] <= date, required_cols].dropna(subset=["availability_date"])
+        if eligible.empty:
+            return np.nan, np.nan
+
+        row = eligible.iloc[-1]
+        revenue = row["revenue"] if pd.notna(row["revenue"]) else np.nan
+        operating_income = row["operatingIncome"] if pd.notna(row["operatingIncome"]) else np.nan
+
+        return float(revenue) if pd.notna(revenue) else np.nan, float(operating_income) if pd.notna(operating_income) else np.nan
     
     def get_previous_signal_date(self, signal_date: pd.Timestamp) -> Optional[pd.Timestamp]:
         """
@@ -625,11 +651,18 @@ class CrossSectionalBacktestBase:
         df = pd.read_csv(path)
         df = self._normalize_availability_date(df)
 
+        required_candidates = ["netIncome", "revenue", "operatingIncome"]
+        available_cols = ["availability_date"] + [c for c in required_candidates if c in df.columns]
+
         if "netIncome" not in df.columns:
             raise ValueError(f"Missing netIncome in income statement file: {path}")
 
-        df = df[["availability_date", "netIncome"]].copy()
-        df["netIncome"] = pd.to_numeric(df["netIncome"], errors="coerce")
+        df = df[available_cols].copy()
+
+        for col in ["netIncome", "revenue", "operatingIncome"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
         df = df.dropna(subset=["availability_date"]).sort_values("availability_date").reset_index(drop=True)
 
         self._income_cache[ticker] = df
