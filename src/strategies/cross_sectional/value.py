@@ -12,7 +12,7 @@ class ValueStrategy(BaseCrossSectionalStrategy):
     Paper-faithful Value strategy (long-only in portfolio construction).
 
     Signals:
-    - higher dividend-per-share proxy
+    - higher dividend yield proxy
     - lower price-to-book
     - higher free cash flow yield
     - more negative rebalance-to-rebalance return (mean reversion)
@@ -42,19 +42,10 @@ class ValueStrategy(BaseCrossSectionalStrategy):
             lambda t: base.get_rebalance_return(ticker=t, signal_date=signal_date)
         )
 
-        # shares outstanding proxy = market cap / price
-        df["shares_outstanding_proxy"] = np.where(
-            (df["adj_close_t"].notna()) & (df["adj_close_t"] != 0),
-            df["market_cap"] / df["adj_close_t"],
-            np.nan,
-        )
-
-        # Dividend-per-share proxy:
+        # Dividend yield proxy:
         # commonDividendsPaid is usually negative cash outflow, so take absolute value
-        df["dps_proxy"] = np.where(
-            (df["shares_outstanding_proxy"].notna()) & (df["shares_outstanding_proxy"] != 0),
-            np.abs(df["ttm_common_dividends_paid"]) / df["shares_outstanding_proxy"],
-            np.nan,
+        df["dividend_yield_proxy"] = (
+            df["ttm_common_dividends_paid"].abs() / df["market_cap"].replace(0, np.nan)
         )
 
         return df
@@ -69,7 +60,7 @@ class ValueStrategy(BaseCrossSectionalStrategy):
             "ttm_free_cash_flow",
             "ttm_common_dividends_paid",
             "mom_1m",
-            "dps_proxy",
+            "dividend_yield_proxy",
         ]
         df = df.dropna(subset=required).copy()
 
@@ -84,7 +75,7 @@ class ValueStrategy(BaseCrossSectionalStrategy):
         df["fcf_yield"] = df["ttm_free_cash_flow"] / df["market_cap"]
         df["fcf_yield_signal"] = df["fcf_yield"]  # higher is better
 
-        df["dividend_signal"] = df["dps_proxy"]  # higher dividend/share is better
+        df["dividend_signal"] = df["dividend_yield_proxy"]  # higher dividend yield is better
 
         # More negative past return is preferred for mean reversion
         df["reversal_signal"] = -df["mom_1m"]
