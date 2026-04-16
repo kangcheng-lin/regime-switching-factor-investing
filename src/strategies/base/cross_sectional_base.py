@@ -39,11 +39,21 @@ class CrossSectionalConfig:
     portfolio_mode: str = "long_short"   # supported: long_short, long_only
     selection_quantile: float = 0.20     # used for long_only
 
+    selection_mode: str = "quantile"   # supported: quantile, top_n
+    long_n: int = 50
+    short_n: int = 50
+    selection_n: int = 50   # used for long_only
+
     # Generic signal filters
     min_price: float = 5.0
     min_market_cap: float = 1e6
     min_book_equity: float = 1e6
     allow_negative_earnings: bool = True
+
+    # Universe control- for future strategies that may want to limit the universe to a top N by market cap or similar filter
+    use_top_n_universe: bool = False
+    top_n: int = 2000
+    universe_sort_field: str = "market_cap"
 
 
 class CrossSectionalBacktestBase:
@@ -264,7 +274,12 @@ class CrossSectionalBacktestBase:
         if filtered_df.empty:
             return filtered_df
 
-        signals_df = self.strategy.build_signals(filtered_df.copy())
+        universe_filtered_df = self.apply_top_n_universe_filter(filtered_df)
+
+        if universe_filtered_df.empty:
+            return universe_filtered_df
+
+        signals_df = self.strategy.build_signals(universe_filtered_df.copy())
 
         if signals_df.empty:
             return signals_df
@@ -298,6 +313,24 @@ class CrossSectionalBacktestBase:
             out = out.loc[out["ttm_net_income"] > 0].copy()
 
         return out
+    
+    def apply_top_n_universe_filter(self, df: pd.DataFrame) -> pd.DataFrame:
+        if not self.config.use_top_n_universe or df.empty:
+            return df
+
+        field = self.config.universe_sort_field
+
+        if field not in df.columns:
+            raise ValueError(f"Universe sort field {field!r} not found in DataFrame.")
+
+        out = (
+            df.dropna(subset=[field])
+            .sort_values(field, ascending=False)
+            .head(self.config.top_n)
+            .reset_index(drop=True)
+        )
+
+        return out
 
     # ------------------------------------------------------------------
     # Portfolio construction / returns
@@ -317,9 +350,15 @@ class CrossSectionalBacktestBase:
         ).copy()
 
         if self.config.portfolio_mode == "long_short":
-            n = len(ranked)
-            n_long = max(1, math.floor(n * self.config.long_quantile))
-            n_short = max(1, math.floor(n * self.config.short_quantile))
+            if self.config.selection_mode == "quantile":
+                n = len(ranked)
+                n_long = max(1, math.floor(n * self.config.long_quantile))
+                n_short = max(1, math.floor(n * self.config.short_quantile))
+            elif self.config.selection_mode == "top_n":
+                n_long = min(self.config.long_n, len(ranked))
+                n_short = min(self.config.short_n, len(ranked))
+            else:
+                raise ValueError(f"Unsupported selection_mode={self.config.selection_mode!r}")
 
             longs = ranked.head(n_long).copy()
             shorts = ranked.tail(n_short).copy()
@@ -330,8 +369,13 @@ class CrossSectionalBacktestBase:
             membership = pd.concat([longs, shorts], ignore_index=True)
 
         elif self.config.portfolio_mode == "long_only":
-            n = len(ranked)
-            n_select = max(1, math.floor(n * self.config.selection_quantile))
+            if self.config.selection_mode == "quantile":
+                n = len(ranked)
+                n_select = max(1, math.floor(n * self.config.selection_quantile))
+            elif self.config.selection_mode == "top_n":
+                n_select = min(self.config.selection_n, len(ranked))
+            else:
+                raise ValueError(f"Unsupported selection_mode={self.config.selection_mode!r}")
 
             membership = ranked.head(n_select).copy()
             membership["side"] = "long"
