@@ -1,0 +1,655 @@
+1
+|
+3:17:11
+:
+Built project 'Swimming Magenta Monkey' in Cloud for Lean Engine 2.5.0.0.17674, with Id '440d16-e38a0e'
+2
+|
+3:17:38
+:
+Received backtest 'Retrospective Black Bee' request
+3
+|
+3:17:44
+:
+Initializing algorithm...
+4
+|
+3:17:44
+:
+Launching analysis for 1e0ad10c3e203f52c641963c7f72c3ca with LEAN Engine v2.5.0.0.17674
+5
+|
+3:17:44
+:
+Backtest deployed in 6.296 seconds
+6
+|
+3:17:53
+:
+2006-01-01 00:00:00 Warning: AddUniverse(coarseSelector, fineSelector) is obsolete, please use AddUniverse(Func, IEnumerable> selector) instead.
+7
+|
+3:17:53
+:
+2006-01-01 00:00:00 Initialize complete.
+8
+|
+3:17:53
+:
+2006-01-01 00:00:00 Fine universe kept: 1000
+9
+|
+3:17:53
+:
+2006-01-03 10:00:00 Month-start execution: 2006-01-03 | skipped
+10
+|
+3:17:53
+:
+2006-01-04 00:00:00 Fine universe kept: 1000
+11
+|
+3:18:00
+:
+2006-01-31 10:00:00 DIAG 2006-01-31 | cand=996 sel=50 | top10=GNW,TYC,ALL,CNA,AIG,CD,HIG,AXS,NI,TSN | med_ret=-0.0159 med_pb=1.6263 med_div=0.0000 med_fcf=0.2172
+12
+|
+3:18:00
+:
+2006-01-31 10:00:00 PORT|2006-01-31|chunk=1|GNW|TYC|ALL|CNA|AIG|CD|HIG|AXS|NI|TSN
+13
+|
+3:18:00
+:
+2006-01-31 10:00:00 PORT|2006-01-31|chunk=2|XRX|IP|C|BPOP|PRU|MET|RDN|FLEX|RE|AFG
+14
+|
+3:18:00
+:
+2006-01-31 10:00:00 PORT|2006-01-31|chunk=3|GE|STA|RF|TK|ACE|PCG|DUK|DOW|RCL|CTL
+15
+|
+3:18:00
+:
+2006-01-31 10:00:00 PORT|2006-01-31|chunk=4|UTR|ORI|AEE|CINF|ETR|MBI|WR|ANAT|COF|PFG
+16
+|
+3:18:00
+:
+2006-01-31 10:00:00 PORT|2006-01-31|chunk=5|NOC|WLP|FITB|MCY|INTC|FE|FPL|ACGL|USB|RGA
+17
+|
+3:18:00
+:
+2006-01-31 10:00:00 Month-end signal: 2006-01-31 | candidates = 996 | selected = 50
+18
+|
+3:18:00
+:
+2006-02-01 00:00:00 Fine universe kept: 1000
+19
+|
+3:18:00
+:
+2006-02-01 10:00:00 Month-start execution: 2006-02-01 | tradable = 50 | weight = 0.0200
+20
+|
+3:18:00
+:
+2006-02-02 00:00:00 Fine universe kept: 1000
+21
+|
+3:18:07
+:
+2006-02-28 10:00:00 DIAG 2006-02-28 | cand=997 sel=50 | top10=F,EXPE,STA,UNM,LTR,COP,CNA,GNW,MBI,CD | med_ret=-0.0194 med_pb=1.6001 med_div=0.0000 med_fcf=0.2147
+22
+|
+3:18:07
+:
+2006-02-28 10:00:00 PORT|2006-02-28|chunk=1|F|EXPE|STA|UNM|LTR|COP|CNA|GNW|MBI|CD
+23
+|
+3:18:07
+:
+2006-02-28 10:00:00 PORT|2006-02-28|chunk=2|HIG|FAF|TYC|MET|CVX|CINF|ANAT|DVN|RGA|RNR
+24
+|
+3:18:07
+:
+2006-02-28 10:00:00 PORT|2006-02-28|chunk=3|CNO|NCC|C|AIG|PRU|TMK|AN|ORI|HAS|BRKA
+25
+|
+3:18:07
+:
+2006-02-28 10:00:00 PORT|2006-02-28|chunk=4|LEG|AIZ|INTC|BPOP|CMCSA|FITB|SJM|BRKB|MTG|RE
+26
+|
+3:18:07
+:
+2006-02-28 10:00:00 PORT|2006-02-28|chunk=5|RDN|UTSI|VLO|AFL|XOM|MO|KFT|STC|NI|ALL
+27
+|
+3:18:07
+:
+2006-02-28 10:00:00 Month-end signal: 2006-02-28 | candidates = 997 | selected = 50
+28
+|
+3:18:07
+:
+2006-03-01 00:00:00 Fine universe kept: 1000
+29
+|
+3:18:07
+:
+2006-03-01 10:00:00 Warning: Portfolio rebalance result ignored as it resulted in a single share trade recommendation which can generate high fees. To disable minimum order size checks please set Sett...
+30
+|
+3:18:07
+:
+2006-03-01 10:00:00 Month-start execution: 2006-03-01 | tradable = 50 | weight = 0.0200
+31
+|
+3:18:07
+:
+2006-03-02 00:00:00 Fine universe kept: 1000
+32
+|
+3:18:14
+:
+2006-03-31 10:00:00 DIAG 2006-03-31 | cand=997 sel=50 | top10=MET,ACE,COF,T,ALL,BAP,HIG,RE,AXS,STA | med_ret=-0.0242 med_pb=1.6740 med_div=0.0000 med_fcf=0.2212
+33
+|
+3:18:14
+:
+2006-03-31 10:00:00 PORT|2006-03-31|chunk=1|MET|ACE|COF|T|ALL|BAP|HIG|RE|AXS|STA
+34
+|
+3:18:14
+:
+2006-03-31 10:00:00 PORT|2006-03-31|chunk=2|FAF|HPQ|DOW|CINF|NCC|UNM|MU|FE|AIG|ANAT
+35
+|
+3:18:14
+:
+2006-03-31 10:00:00 PORT|2006-03-31|chunk=3|RCL|PFE|PRU|LNC|GNW|SCHL|RF|ORI|COP|UTR
+36
+|
+3:18:14
+:
+2006-03-31 10:00:00 PORT|2006-03-31|chunk=4|AFG|CNO|FLEX|SCI|ARW|PPL|CD|XRX|SSP|GDW
+37
+|
+3:18:14
+:
+2006-03-31 10:00:00 PORT|2006-03-31|chunk=5|KEY|CVX|AFL|INTC|LPX|STT|PFG|MCK|EXPE|RNR
+38
+|
+3:18:14
+:
+2006-03-31 10:00:00 Month-end signal: 2006-03-31 | candidates = 997 | selected = 50
+39
+|
+3:18:14
+:
+2006-04-01 00:00:00 Fine universe kept: 1000
+40
+|
+3:18:14
+:
+2006-04-03 10:00:00 Month-start execution: 2006-04-03 | tradable = 50 | weight = 0.0200
+41
+|
+3:18:14
+:
+2006-04-04 00:00:00 Fine universe kept: 1000
+42
+|
+3:18:17
+:
+Warning: when performing history requests, the start date will be adjusted if there are numerical precision errors in the factor files.
+43
+|
+3:18:17
+:
+Warning: when performing history requests, the start date will be adjusted if it is before the first known date for the symbol.
+44
+|
+3:18:21
+:
+2006-04-28 10:00:00 DIAG 2006-04-28 | cand=994 sel=50 | top10=F,WLP,TYC,CTL,T,XRX,AIG,CNA,CINF,GNW | med_ret=-0.0266 med_pb=1.8109 med_div=0.0000 med_fcf=0.1986
+45
+|
+3:18:21
+:
+2006-04-28 10:00:00 PORT|2006-04-28|chunk=1|F|WLP|TYC|CTL|T|XRX|AIG|CNA|CINF|GNW
+46
+|
+3:18:21
+:
+2006-04-28 10:00:00 PORT|2006-04-28|chunk=2|UNM|RE|VZ|MBI|NOC|ABC|CD|DVN|LUV|FBP
+47
+|
+3:18:21
+:
+2006-04-28 10:00:00 PORT|2006-04-28|chunk=3|MCK|BRKB|PRU|MET|PFE|BRKA|CAH|HUM|JNPR|EIX
+48
+|
+3:18:21
+:
+2006-04-28 10:00:00 PORT|2006-04-28|chunk=4|AIZ|LTR|UNH|DOW|C|MOT|CMX|CVX|STA|MHK
+49
+|
+3:18:21
+:
+2006-04-28 10:00:00 PORT|2006-04-28|chunk=5|ACE|PPL|AXS|ITT|RF|WLK|FITB|RLI|LEE|NCC
+50
+|
+3:18:21
+:
+2006-04-28 10:00:00 Month-end signal: 2006-04-28 | candidates = 994 | selected = 50
+51
+|
+3:18:21
+:
+2006-04-29 00:00:00 Fine universe kept: 1000
+52
+|
+3:18:21
+:
+2006-05-01 10:00:00 Month-start execution: 2006-05-01 | tradable = 50 | weight = 0.0200
+53
+|
+3:18:21
+:
+2006-05-02 00:00:00 Fine universe kept: 1000
+54
+|
+3:18:28
+:
+2006-05-31 10:00:00 DIAG 2006-05-31 | cand=999 sel=50 | top10=UNM,CD,AXS,FD,AIG,RCL,ACE,RF,BPOP,MET | med_ret=-0.0615 med_pb=1.7781 med_div=0.0000 med_fcf=0.2332
+55
+|
+3:18:28
+:
+2006-05-31 10:00:00 PORT|2006-05-31|chunk=1|UNM|CD|AXS|FD|AIG|RCL|ACE|RF|BPOP|MET
+56
+|
+3:18:28
+:
+2006-05-31 10:00:00 PORT|2006-05-31|chunk=2|COP|CE|ACGL|LTR|VLO|LPX|VZ|CTL|CNO|PRU
+57
+|
+3:18:28
+:
+2006-05-31 10:00:00 PORT|2006-05-31|chunk=3|MBI|JNPR|XRX|BAP|DOW|CCL|COF|CVX|DVN|ALL
+58
+|
+3:18:28
+:
+2006-05-31 10:00:00 PORT|2006-05-31|chunk=4|CNA|FNT|T|OXY|UNH|FITB|ORI|PFE|SEB|NOC
+59
+|
+3:18:28
+:
+2006-05-31 10:00:00 PORT|2006-05-31|chunk=5|BER|STA|MTG|WOR|NC|AMP|F|AFG|AOC|GNW
+60
+|
+3:18:28
+:
+2006-05-31 10:00:00 Month-end signal: 2006-05-31 | candidates = 999 | selected = 50
+61
+|
+3:18:28
+:
+2006-06-01 00:00:00 Fine universe kept: 1000
+62
+|
+3:18:28
+:
+2006-06-01 10:00:00 Month-start execution: 2006-06-01 | tradable = 50 | weight = 0.0200
+63
+|
+3:18:28
+:
+2006-06-02 00:00:00 Fine universe kept: 1000
+64
+|
+3:18:35
+:
+2006-06-30 10:00:00 DIAG 2006-06-30 | cand=998 sel=50 | top10=F,MET,HIG,CD,CNO,AIG,KFT,ACE,RF,RE | med_ret=-0.0422 med_pb=1.7492 med_div=0.0000 med_fcf=0.2102
+65
+|
+3:18:35
+:
+2006-06-30 10:00:00 PORT|2006-06-30|chunk=1|F|MET|HIG|CD|CNO|AIG|KFT|ACE|RF|RE
+66
+|
+3:18:35
+:
+2006-06-30 10:00:00 PORT|2006-06-30|chunk=2|MU|LPX|SYMC|MCK|NCC|MOT|FLEX|TYC|JNPR|FITB
+67
+|
+3:18:35
+:
+2006-06-30 10:00:00 PORT|2006-06-30|chunk=3|C|ALL|FNT|DOW|FBP|BPOP|ABC|FFG|UTR|PFE
+68
+|
+3:18:35
+:
+2006-06-30 10:00:00 PORT|2006-06-30|chunk=4|ZION|XRX|UNM|AMP|TFX|MAS|NOC|MTG|HPQ|CAG
+69
+|
+3:18:35
+:
+2006-06-30 10:00:00 PORT|2006-06-30|chunk=5|AIZ|EQ|ITT|SSP|PRU|CAH|KFS|STT|CNA|IP
+70
+|
+3:18:35
+:
+2006-06-30 10:00:00 Month-end signal: 2006-06-30 | candidates = 998 | selected = 50
+71
+|
+3:18:35
+:
+2006-07-01 00:00:00 Fine universe kept: 1000
+72
+|
+3:18:35
+:
+2006-07-03 10:00:00 Month-start execution: 2006-07-03 | tradable = 50 | weight = 0.0200
+73
+|
+3:18:35
+:
+2006-07-04 00:00:00 Fine universe kept: 1000
+74
+|
+3:18:42
+:
+2006-07-31 10:00:00 DIAG 2006-07-31 | cand=996 sel=50 | top10=UNM,DOW,COF,CD,MDC,TYC,JNPR,GNW,ANAT,FAF | med_ret=-0.0584 med_pb=1.5060 med_div=0.0000 med_fcf=0.2033
+75
+|
+3:18:42
+:
+2006-07-31 10:00:00 PORT|2006-07-31|chunk=1|UNM|DOW|COF|CD|MDC|TYC|JNPR|GNW|ANAT|FAF
+76
+|
+3:18:42
+:
+2006-07-31 10:00:00 PORT|2006-07-31|chunk=2|MTG|IR|NSC|MET|BPOP|FD|NCC|LPX|AFG|UTR
+77
+|
+3:18:42
+:
+2006-07-31 10:00:00 PORT|2006-07-31|chunk=3|PFG|ETN|MAS|HIG|CNO|ALEX|CCRT|AFL|CE|ORI
+78
+|
+3:18:42
+:
+2006-07-31 10:00:00 PORT|2006-07-31|chunk=4|EBAY|CNA|AN|LEG|ACE|LEE|STA|WLK|HPQ|F
+79
+|
+3:18:42
+:
+2006-07-31 10:00:00 PORT|2006-07-31|chunk=5|MBI|SIGI|C|VSH|CINF|LII|WFSL|LTR|MWA|NCR
+80
+|
+3:18:42
+:
+2006-07-31 10:00:00 Month-end signal: 2006-07-31 | candidates = 996 | selected = 50
+81
+|
+3:18:42
+:
+2006-08-01 00:00:00 Fine universe kept: 1000
+82
+|
+3:18:42
+:
+2006-08-01 10:00:00 Month-start execution: 2006-08-01 | tradable = 50 | weight = 0.0200
+83
+|
+3:18:42
+:
+2006-08-02 00:00:00 Fine universe kept: 1000
+84
+|
+3:18:48
+:
+2006-08-31 10:00:00 DIAG 2006-08-31 | cand=997 sel=50 | top10=TYC,COF,CNO,NCC,STA,COP,GNW,FHN,NI,VLO | med_ret=-0.0236 med_pb=1.7628 med_div=0.0000 med_fcf=0.1999
+85
+|
+3:18:48
+:
+2006-08-31 10:00:00 PORT|2006-08-31|chunk=1|TYC|COF|CNO|NCC|STA|COP|GNW|FHN|NI|VLO
+86
+|
+3:18:48
+:
+2006-08-31 10:00:00 PORT|2006-08-31|chunk=2|RF|PRU|CINF|MET|ORI|AG|WOR|MCY|PFG|EQ
+87
+|
+3:18:48
+:
+2006-08-31 10:00:00 PORT|2006-08-31|chunk=3|CVX|RDN|NC|CNA|MDC|ZION|FCNCA|WFSL|URI|HIG
+88
+|
+3:18:48
+:
+2006-08-31 10:00:00 PORT|2006-08-31|chunk=4|LAZ|KMR|ACE|NSC|TFX|LPX|T|AMP|UAG|HBAN
+89
+|
+3:18:48
+:
+2006-08-31 10:00:00 PORT|2006-08-31|chunk=5|RE|UCO|OXY|ACGL|AFG|CBT|NUE|AOS|APA|BER
+90
+|
+3:18:48
+:
+2006-08-31 10:00:00 Month-end signal: 2006-08-31 | candidates = 997 | selected = 50
+91
+|
+3:18:48
+:
+2006-09-01 00:00:00 Fine universe kept: 1000
+92
+|
+3:18:48
+:
+2006-09-01 10:00:00 Month-start execution: 2006-09-01 | tradable = 50 | weight = 0.0200
+93
+|
+3:18:48
+:
+2006-09-02 00:00:00 Fine universe kept: 1000
+94
+|
+3:18:54
+:
+2006-09-29 10:00:00 DIAG 2006-09-29 | cand=998 sel=50 | top10=F,COP,CAR,VLO,MET,LTR,MO,CTL,CVX,AFG | med_ret=-0.0080 med_pb=1.5509 med_div=0.0000 med_fcf=0.1758
+95
+|
+3:18:54
+:
+2006-09-29 10:00:00 PORT|2006-09-29|chunk=1|F|COP|CAR|VLO|MET|LTR|MO|CTL|CVX|AFG
+96
+|
+3:18:54
+:
+2006-09-29 10:00:00 PORT|2006-09-29|chunk=2|WLP|CNA|FITB|GNW|OXY|ANAT|MWA|MBI|LUV|TAP
+97
+|
+3:18:54
+:
+2006-09-29 10:00:00 PORT|2006-09-29|chunk=3|CE|LPX|HIG|AGO|HPQ|LYV|LENB|WR|PNM|RF
+98
+|
+3:18:54
+:
+2006-09-29 10:00:00 PORT|2006-09-29|chunk=4|DOW|C|APA|UNM|BRKB|SEB|BRKA|PFG|KMR|ALB
+99
+|
+3:18:54
+:
+2006-09-29 10:00:00 PORT|2006-09-29|chunk=5|NOC|HE|PFS|LEN|OMM|XOM|TYC|ORI|CNO|NRG
+100
+|
+3:18:54
+:
+2006-09-29 10:00:00 Month-end signal: 2006-09-29 | candidates = 998 | selected = 50
+101
+|
+3:18:54
+:
+2006-09-30 00:00:00 Fine universe kept: 1000
+102
+|
+3:18:54
+:
+2006-10-02 10:00:00 Month-start execution: 2006-10-02 | tradable = 50 | weight = 0.0200
+103
+|
+3:18:54
+:
+2006-10-03 00:00:00 Fine universe kept: 1000
+104
+|
+3:19:00
+:
+2006-10-31 10:00:00 DIAG 2006-10-31 | cand=997 sel=50 | top10=F,GNW,SYMC,CINF,NOC,ALL,BPOP,CNO,RDN,KFT | med_ret=-0.0046 med_pb=1.6064 med_div=0.0000 med_fcf=0.1685
+105
+|
+3:19:00
+:
+2006-10-31 10:00:00 PORT|2006-10-31|chunk=1|F|GNW|SYMC|CINF|NOC|ALL|BPOP|CNO|RDN|KFT
+106
+|
+3:19:00
+:
+2006-10-31 10:00:00 PORT|2006-10-31|chunk=2|HIG|NCC|BAP|IR|FAF|COP|MET|LUV|PNC|CNA
+107
+|
+3:19:00
+:
+2006-10-31 10:00:00 PORT|2006-10-31|chunk=3|FD|MBI|TYC|THG|WLP|MTG|AGO|VLO|PFE|ANAT
+108
+|
+3:19:00
+:
+2006-10-31 10:00:00 PORT|2006-10-31|chunk=4|LEG|AIG|TAP|IP|AN|OXY|AXS|UTR|MCK|TMK
+109
+|
+3:19:00
+:
+2006-10-31 10:00:00 PORT|2006-10-31|chunk=5|EQ|ORI|MHK|LTR|CECO|AIZ|C|CVX|UNM|AFG
+110
+|
+3:19:00
+:
+2006-10-31 10:00:00 Month-end signal: 2006-10-31 | candidates = 997 | selected = 50
+111
+|
+3:19:00
+:
+2006-11-01 00:00:00 Fine universe kept: 1000
+112
+|
+3:19:00
+:
+2006-11-01 10:00:00 Month-start execution: 2006-11-01 | tradable = 50 | weight = 0.0200
+113
+|
+3:19:00
+:
+2006-11-02 00:00:00 Fine universe kept: 1000
+114
+|
+3:19:08
+:
+2006-11-30 10:00:00 DIAG 2006-11-30 | cand=996 sel=50 | top10=F,BAP,COF,GNW,NCC,FAF,HIG,RF,BPOP,CINF | med_ret=-0.0153 med_pb=1.7111 med_div=0.0000 med_fcf=0.2282
+115
+|
+3:19:08
+:
+2006-11-30 10:00:00 PORT|2006-11-30|chunk=1|F|BAP|COF|GNW|NCC|FAF|HIG|RF|BPOP|CINF
+116
+|
+3:19:08
+:
+2006-11-30 10:00:00 PORT|2006-11-30|chunk=2|T|ACE|CNO|WLP|C|DOW|RGA|SAI|IP|VZ
+117
+|
+3:19:08
+:
+2006-11-30 10:00:00 PORT|2006-11-30|chunk=3|FITB|MET|XRX|ORI|MTG|STA|MOT|ANAT|PGR|MTB
+118
+|
+3:19:08
+:
+2006-11-30 10:00:00 PORT|2006-11-30|chunk=4|RDN|WFC|UNM|CAH|AFL|TYC|CNA|BER|NSC|ZION
+119
+|
+3:19:08
+:
+2006-11-30 10:00:00 PORT|2006-11-30|chunk=5|KFT|GPS|NOC|TAP|FD|AXS|ABC|RE|ITW|USB
+120
+|
+3:19:08
+:
+2006-11-30 10:00:00 Month-end signal: 2006-11-30 | candidates = 996 | selected = 50
+121
+|
+3:19:08
+:
+2006-12-01 00:00:00 Fine universe kept: 1000
+122
+|
+3:19:08
+:
+2006-12-01 10:00:00 Month-start execution: 2006-12-01 | tradable = 50 | weight = 0.0200
+123
+|
+3:19:08
+:
+2006-12-02 00:00:00 Fine universe kept: 1000
+124
+|
+3:19:15
+:
+2006-12-29 10:00:00 DIAG 2006-12-29 | cand=999 sel=50 | top10=F,VLO,MET,NI,PFE,NCC,COF,SYMC,SAI,JNPR | med_ret=0.0032 med_pb=1.7469 med_div=0.0000 med_fcf=0.2001
+125
+|
+3:19:15
+:
+2006-12-29 10:00:00 PORT|2006-12-29|chunk=1|F|VLO|MET|NI|PFE|NCC|COF|SYMC|SAI|JNPR
+126
+|
+3:19:15
+:
+2006-12-29 10:00:00 PORT|2006-12-29|chunk=2|MOT|RGA|DOW|PH|TYC|FD|OXY|AXS|RE|ANAT
+127
+|
+3:19:15
+:
+2006-12-29 10:00:00 PORT|2006-12-29|chunk=3|CNA|EIX|GNW|UNM|BPOP|UTX|AIZ|LNT|NOC|NUE
+128
+|
+3:19:15
+:
+2006-12-29 10:00:00 PORT|2006-12-29|chunk=4|HBAN|CNO|PFG|NC|KFT|WFC|ITW|RF|NRG|ACGL
+129
+|
+3:19:15
+:
+2006-12-29 10:00:00 PORT|2006-12-29|chunk=5|STA|KSS|NOV|WLK|CINF|ABC|MHK|BAP|MCY|FBP
+130
+|
+3:19:15
+:
+2006-12-29 10:00:00 Month-end signal: 2006-12-29 | candidates = 999 | selected = 50
+131
+|
+3:19:15
+:
+2006-12-30 00:00:00 Fine universe kept: 1000
